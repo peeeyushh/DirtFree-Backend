@@ -23,4 +23,5 @@ try {
 }
 
 export const auth = admin.apps.length ? admin.auth() : null;
+export const db = admin.apps.length ? admin.firestore() : null;
 export default admin;

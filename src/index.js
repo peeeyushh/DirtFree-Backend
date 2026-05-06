@@ -2,12 +2,16 @@ import http from 'http';
 import dotenv from 'dotenv';
 import app from './app.js';
 import { initSocket } from './socket/index.js';
+import { startDispatcher } from './services/dispatcher.js';
 import logger from './config/logger.js';
 
 dotenv.config();
 
 const server = http.createServer(app);
 const io = initSocket(server);
+
+// Start Automatic Assignment Dispatcher
+startDispatcher(io);
 
 const PORT = process.env.PORT || 5000;
 
