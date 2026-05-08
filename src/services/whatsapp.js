@@ -6,8 +6,10 @@ import logger from '../config/logger.js';
 
 let client;
 let latestQR = null;
+let status = 'INITIALIZING'; // INITIALIZING, QR_READY, AUTHENTICATED, FAILED
 
 export const getLatestQR = () => latestQR;
+export const getWhatsAppStatus = () => status;
 
 export const initWhatsApp = () => {
     logger.info('📱 Initializing WhatsApp Client...');
@@ -33,11 +35,14 @@ export const initWhatsApp = () => {
 
     client.on('qr', (qr) => {
         latestQR = qr;
+        status = 'QR_READY';
         logger.info('📲 ACTION REQUIRED: Scan the QR code in your dashboard or terminal.');
         qrcode.generate(qr, { small: true });
     });
 
     client.on('ready', () => {
+        status = 'AUTHENTICATED';
+        latestQR = null;
         logger.info('✅ WhatsApp Client is ready and logged in!');
         startListeningToRequests();
     });
@@ -52,6 +57,7 @@ export const initWhatsApp = () => {
     });
 
     client.initialize().catch(err => {
+        status = 'FAILED';
         logger.error('❌ Error initializing WhatsApp:', err);
     });
 };
