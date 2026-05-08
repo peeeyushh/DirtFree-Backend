@@ -5,6 +5,9 @@ import { db } from '../config/firebase.js';
 import logger from '../config/logger.js';
 
 let client;
+let latestQR = null;
+
+export const getLatestQR = () => latestQR;
 
 export const initWhatsApp = () => {
     logger.info('📱 Initializing WhatsApp Client...');
@@ -29,7 +32,8 @@ export const initWhatsApp = () => {
     });
 
     client.on('qr', (qr) => {
-        logger.info('📲 ACTION REQUIRED: Scan the QR code below with your WhatsApp to enable notifications:');
+        latestQR = qr;
+        logger.info('📲 ACTION REQUIRED: Scan the QR code in your dashboard or terminal.');
         qrcode.generate(qr, { small: true });
     });
 
@@ -39,6 +43,7 @@ export const initWhatsApp = () => {
     });
 
     client.on('authenticated', () => {
+        latestQR = null;
         logger.info('🔓 WhatsApp Authentication successful');
     });
 
