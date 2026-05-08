@@ -16,6 +16,7 @@ export const initWhatsApp = () => {
         }),
         puppeteer: {
             headless: true,
+            executablePath: process.env.NODE_ENV === 'production' ? '/usr/bin/google-chrome' : undefined,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
