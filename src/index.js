@@ -3,7 +3,6 @@ import dotenv from 'dotenv';
 import app from './app.js';
 import { initSocket } from './socket/index.js';
 import { startDispatcher } from './services/dispatcher.js';
-import { initWhatsApp } from './services/whatsapp.js';
 import logger from './config/logger.js';
 
 dotenv.config();
@@ -13,9 +12,6 @@ const io = initSocket(server);
 
 // Start Automatic Assignment Dispatcher
 startDispatcher(io);
-
-// Initialize WhatsApp Notifications
-initWhatsApp();
 
 const PORT = process.env.PORT || 5000;
 
