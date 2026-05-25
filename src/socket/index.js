@@ -42,6 +42,7 @@ export const initSocket = (server) => {
     socket.on('register', (data) => {
       if (data.role === 'partner') {
         socket.join('partners');
+        socket.partnerId = data.id; // Store partnerId on socket
         logger.info(`👷 Partner ${data.id} joined partners room`);
       }
     });
@@ -49,6 +50,11 @@ export const initSocket = (server) => {
     socket.on('updateLocation', (data) => {
       const { partnerId, latitude, longitude, isOnline } = data;
       if (!partnerId) return;
+
+      socket.partnerId = partnerId;
+      socket.latitude = latitude;
+      socket.longitude = longitude;
+      socket.isOnline = isOnline;
 
       // Broadcast location to anyone tracking this partner (e.g., customers)
       io.to(`tracking_${partnerId}`).emit('partnerLocationUpdate', {
