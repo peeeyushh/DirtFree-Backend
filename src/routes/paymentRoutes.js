@@ -38,7 +38,11 @@ router.post('/create-order', async (req, res, next) => {
     });
   } catch (error) {
     logger.error('[Razorpay] Order creation failed:', error);
-    const errMsg = error.description || error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    const errMsg = 
+      (error.error && error.error.description) || 
+      error.description || 
+      error.message || 
+      (typeof error === 'object' ? JSON.stringify(error) : String(error));
     res.status(500).json({ error: errMsg || 'Failed to create Razorpay order' });
   }
 });

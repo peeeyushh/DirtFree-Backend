@@ -1,11 +1,9 @@
+import 'dotenv/config';
 import http from 'http';
-import dotenv from 'dotenv';
 import app from './app.js';
 import { initSocket } from './socket/index.js';
 import { startDispatcher } from './services/dispatcher.js';
 import logger from './config/logger.js';
-
-dotenv.config();
 
 const server = http.createServer(app);
 const io = initSocket(server);
