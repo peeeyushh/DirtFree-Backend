@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { globalLimiter } from './middleware/rateLimiter.js';
 import logger from './config/logger.js';
+import paymentRouter from './routes/paymentRoutes.js';
 
 const app = express();
 
@@ -14,6 +15,9 @@ app.use(cors({
 }));
 app.use(globalLimiter); // Protects against DDoS
 app.use(express.json());
+
+// Routes
+app.use('/payments', paymentRouter);
 
 // Health Check
 app.get('/health', (req, res) => {
