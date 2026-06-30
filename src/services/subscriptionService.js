@@ -5,7 +5,19 @@ import admin from 'firebase-admin';
 export const getSubscriptions = async () => {
   try {
     const snapshot = await db.collection('subscriptions').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const subs = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      let city = 'Unknown';
+      if (data.bookingId) {
+        const bDoc = await db.collection('bookings').doc(data.bookingId).get();
+        if (bDoc.exists) {
+          city = bDoc.data().serviceCity || bDoc.data().city || 'Unknown';
+        }
+      }
+      subs.push({ id: doc.id, ...data, city });
+    }
+    return subs;
   } catch (error) {
     logger.error('Error fetching subscriptions:', error);
     throw error;
