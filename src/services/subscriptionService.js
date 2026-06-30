@@ -65,3 +65,45 @@ export const swapPartnerForTasks = async (subscriptionId, customerId, badPartner
     throw error;
   }
 };
+
+export const assignPartnerToTasks = async (subscriptionId, partnerId, taskId = null) => {
+  try {
+    const batch = db.batch();
+    
+    let query = db.collection('serviceTasks')
+      .where('subscriptionId', '==', subscriptionId);
+      
+    if (taskId) {
+      // Assign to a specific task
+      const taskDoc = await db.collection('serviceTasks').doc(taskId).get();
+      if (taskDoc.exists) {
+        batch.update(taskDoc.ref, { assignedPartnerId: partnerId, status: 'assigned' });
+        await batch.commit();
+        logger.info(`Assigned partner ${partnerId} to task ${taskId}`);
+        return { success: true, message: `Partner assigned to specific task.` };
+      } else {
+        throw new Error('Task not found');
+      }
+    } else {
+      // Assign to all unassigned tasks in this subscription
+      const tasksSnapshot = await query.where('assignedPartnerId', '==', null).get();
+      
+      let updatedTasks = 0;
+      tasksSnapshot.forEach(doc => {
+        batch.update(doc.ref, { assignedPartnerId: partnerId, status: 'assigned' });
+        updatedTasks++;
+      });
+
+      if (updatedTasks > 0) {
+        await batch.commit();
+        logger.info(`Assigned partner ${partnerId} to ${updatedTasks} tasks of sub ${subscriptionId}`);
+        return { success: true, message: `Partner assigned to ${updatedTasks} tasks.` };
+      } else {
+        return { success: true, message: `No pending tasks found to assign.` };
+      }
+    }
+  } catch (error) {
+    logger.error('Error assigning partner:', error);
+    throw error;
+  }
+};

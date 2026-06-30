@@ -1,5 +1,5 @@
 import express from 'express';
-import { getSubscriptions, getSubscriptionWithTasks, swapPartnerForTasks } from '../services/subscriptionService.js';
+import { getSubscriptions, getSubscriptionWithTasks, swapPartnerForTasks, assignPartnerToTasks } from '../services/subscriptionService.js';
 import logger from '../config/logger.js';
 
 const router = express.Router();
@@ -34,6 +34,22 @@ router.post('/:id/swap-partner', async (req, res) => {
     }
 
     const result = await swapPartnerForTasks(req.params.id, customerId, badPartnerId, swapType);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Assign partner to subscription tasks (Admin Action)
+router.post('/:id/assign', async (req, res) => {
+  try {
+    const { partnerId, taskId } = req.body;
+    
+    if (!partnerId) {
+      return res.status(400).json({ error: 'partnerId is required' });
+    }
+
+    const result = await assignPartnerToTasks(req.params.id, partnerId, taskId);
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
