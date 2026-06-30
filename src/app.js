@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import { globalLimiter } from './middleware/rateLimiter.js';
 import logger from './config/logger.js';
 import paymentRouter from './routes/paymentRoutes.js';
-
+import subscriptionRouter from './routes/subscriptionRoutes.js';
 const app = express();
 
 // Security Middleware
@@ -18,6 +18,7 @@ app.use(express.json());
 
 // Routes
 app.use('/payments', paymentRouter);
+app.use('/subscriptions', subscriptionRouter);
 
 // Health Check
 app.get('/health', (req, res) => {
