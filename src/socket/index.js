@@ -1,6 +1,8 @@
 import { Server } from 'socket.io';
 import logger from '../config/logger.js';
 import { auth, db } from '../config/firebase.js';
+import redis from '../config/redis.js';
+import { findNearestPartners } from '../services/matchmaking.js';
 
 export const initSocket = (server) => {
   const io = new Server(server, {
@@ -47,7 +49,7 @@ export const initSocket = (server) => {
       }
     });
 
-    socket.on('updateLocation', (data) => {
+    socket.on('updateLocation', async (data) => {
       const { partnerId, latitude, longitude, isOnline } = data;
       if (!partnerId) return;
 
@@ -55,6 +57,18 @@ export const initSocket = (server) => {
       socket.latitude = latitude;
       socket.longitude = longitude;
       socket.isOnline = isOnline;
+
+      // Store in Redis using GEOADD for extremely fast geospatial querying
+      if (isOnline && latitude && longitude) {
+        // syntax: GEOADD key longitude latitude member
+        await redis.geoadd('partners_location', longitude, latitude, partnerId);
+        // Also update their metadata
+        await redis.hset(`partner:${partnerId}`, 'isOnline', 'true', 'lastUpdated', Date.now());
+      } else if (!isOnline) {
+        // Remove from active locations if explicitly marked offline
+        await redis.zrem('partners_location', partnerId);
+        await redis.hset(`partner:${partnerId}`, 'isOnline', 'false');
+      }
 
       // Broadcast location to anyone tracking this partner (e.g., customers)
       io.to(`tracking_${partnerId}`).emit('partnerLocationUpdate', {
@@ -64,8 +78,6 @@ export const initSocket = (server) => {
         isOnline,
         timestamp: new Date()
       });
-      
-      // logger.info(`📍 Location from Partner ${partnerId}: ${latitude}, ${longitude}`);
     });
 
     // Room for customers to track a specific partner
@@ -116,7 +128,52 @@ export const initSocket = (server) => {
       }
     });
 
-    socket.on('disconnect', (reason) => {
+    // Customer requests a booking (Matchmaking)
+    socket.on('requestBooking', async (data) => {
+      const { bookingId, latitude, longitude, radiusInKm } = data;
+      logger.info(`🔍 Customer ${socket.id} requesting booking ${bookingId} near ${latitude}, ${longitude}`);
+
+      try {
+        const nearestPartners = await findNearestPartners(latitude, longitude, radiusInKm || 5, 10);
+        
+        if (nearestPartners.length === 0) {
+          socket.emit('noPartnersFound', { bookingId, message: 'No partners available nearby right now.' });
+          return;
+        }
+
+        logger.info(`✨ Found ${nearestPartners.length} nearby partners for booking ${bookingId}`);
+
+        // Broadcast a 'newBookingRequest' to the specific socket IDs of those partners
+        // To do this reliably, we can have partners join a room with their partnerId
+        // or emit to all partners and let them filter, but emitting to specific rooms is better.
+        nearestPartners.forEach(partner => {
+          // partner.partnerId is their ID. Assuming they joined a room like 'partner_room_${partnerId}'
+          // or we can emit to the general 'partners' room and include their IDs
+          io.to('partners').emit('newBookingRequest', {
+            bookingId,
+            ...data,
+            targetPartnerIds: nearestPartners.map(p => p.partnerId), // The client checks if its ID is in this list
+            distances: nearestPartners
+          });
+        });
+
+      } catch (error) {
+        logger.error(`❌ requestBooking error: ${error.message}`);
+        socket.emit('bookingError', { message: 'Failed to process booking request' });
+      }
+    });
+
+    socket.on('disconnect', async (reason) => {
+      if (socket.partnerId) {
+        // Remove from active locations when disconnected
+        try {
+          await redis.zrem('partners_location', socket.partnerId);
+          await redis.hset(`partner:${socket.partnerId}`, 'isOnline', 'false');
+          logger.info(`🔴 Partner ${socket.partnerId} went offline (Disconnected)`);
+        } catch (err) {
+          logger.error(`❌ Redis error on disconnect: ${err.message}`);
+        }
+      }
       logger.info(`👋 Disconnected: ${socket.id} Reason: ${reason}`);
     });
   });
