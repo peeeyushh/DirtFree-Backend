@@ -12,7 +12,6 @@ import logger from '../config/logger.js';
 export const findNearestPartners = async (latitude, longitude, radiusInKm = 5, maxResults = 10) => {
   try {
     // GEORADIUS key longitude latitude radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC]
-    // ioredis returns an array of arrays when using WITHDIST. e.g. [["partner1", "1.2"], ["partner2", "3.4"]]
     const results = await redis.georadius(
       'partners_location',
       longitude,
@@ -20,16 +19,45 @@ export const findNearestPartners = async (latitude, longitude, radiusInKm = 5, m
       radiusInKm,
       'km',
       'WITHDIST',
+      'WITHCOORD',
       'ASC',
       'COUNT',
       maxResults
     );
 
-    // Format the results into a more usable object
-    const partners = results.map(result => ({
-      partnerId: result[0],
-      distance: parseFloat(result[1])
+    // Fetch real driving distance from OSRM for each partner
+    const partners = await Promise.all(results.map(async (result) => {
+      const partnerId = result[0];
+      const straightLineDist = parseFloat(result[1]);
+      const [partnerLon, partnerLat] = result[2];
+
+      let distance = straightLineDist;
+      let etaMinutes = null;
+
+      try {
+        // OSRM API expects longitude,latitude format
+        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${partnerLon},${partnerLat};${longitude},${latitude}?overview=false`;
+        const response = await fetch(osrmUrl);
+        const data = await response.json();
+
+        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          // OSRM returns distance in meters and duration in seconds
+          distance = data.routes[0].distance / 1000;
+          etaMinutes = Math.ceil(data.routes[0].duration / 60);
+        }
+      } catch (err) {
+        logger.warn(`⚠️ OSRM API failed for partner ${partnerId}, falling back to straight-line distance.`);
+      }
+
+      return {
+        partnerId,
+        distance,
+        eta: etaMinutes // e.g. 5 (minutes)
+      };
     }));
+
+    // Re-sort by actual driving distance just in case
+    partners.sort((a, b) => a.distance - b.distance);
 
     return partners;
   } catch (error) {
