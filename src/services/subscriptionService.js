@@ -68,6 +68,16 @@ export const swapPartnerForTasks = async (subscriptionId, customerId, badPartner
       updatedTasks++;
     });
 
+    // Also update parent booking to remove the worker
+    const subDoc = await db.collection('subscriptions').doc(subscriptionId).get();
+    if (subDoc.exists && subDoc.data().bookingId) {
+      batch.update(db.collection('bookings').doc(subDoc.data().bookingId), {
+        workerId: null,
+        workerName: null,
+        status: 'searching' // Put it back to searching
+      });
+    }
+
     await batch.commit();
     logger.info(`Detached partner ${badPartnerId} from ${updatedTasks} tasks of sub ${subscriptionId}`);
 
