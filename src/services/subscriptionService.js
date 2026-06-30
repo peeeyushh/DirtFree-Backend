@@ -21,10 +21,10 @@ export const getSubscriptionWithTasks = async (subscriptionId) => {
 
     const tasksSnapshot = await db.collection('serviceTasks')
       .where('subscriptionId', '==', subscriptionId)
-      .orderBy('date', 'asc')
       .get();
     
     const tasks = tasksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    tasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     return { ...subData, id: subscriptionId, tasks };
   } catch (error) {
     logger.error(`Error fetching subscription tasks for ${subscriptionId}:`, error);
