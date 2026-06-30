@@ -70,6 +70,14 @@ export const assignPartnerToTasks = async (subscriptionId, partnerId, taskId = n
   try {
     const batch = db.batch();
     
+    // Fetch partner details
+    const partnerDoc = await db.collection('partners').doc(partnerId).get();
+    const partnerData = partnerDoc.exists ? partnerDoc.data() : { name: 'Assigned Partner' };
+    
+    // Fetch subscription to get bookingId
+    const subDoc = await db.collection('subscriptions').doc(subscriptionId).get();
+    const bookingId = subDoc.exists ? subDoc.data().bookingId : null;
+
     let query = db.collection('serviceTasks')
       .where('subscriptionId', '==', subscriptionId);
       
@@ -78,6 +86,16 @@ export const assignPartnerToTasks = async (subscriptionId, partnerId, taskId = n
       const taskDoc = await db.collection('serviceTasks').doc(taskId).get();
       if (taskDoc.exists) {
         batch.update(taskDoc.ref, { assignedPartnerId: partnerId, status: 'assigned' });
+        
+        // Also update the main booking doc so the app stops searching
+        if (bookingId) {
+          batch.update(db.collection('bookings').doc(bookingId), {
+            status: 'assigned',
+            workerId: partnerId,
+            workerName: partnerData.name || `${partnerData.firstName || ''} ${partnerData.lastName || ''}`.trim() || 'Partner'
+          });
+        }
+        
         await batch.commit();
         logger.info(`Assigned partner ${partnerId} to task ${taskId}`);
         return { success: true, message: `Partner assigned to specific task.` };
@@ -95,6 +113,13 @@ export const assignPartnerToTasks = async (subscriptionId, partnerId, taskId = n
       });
 
       if (updatedTasks > 0) {
+        if (bookingId) {
+          batch.update(db.collection('bookings').doc(bookingId), {
+            status: 'assigned',
+            workerId: partnerId,
+            workerName: partnerData.name || `${partnerData.firstName || ''} ${partnerData.lastName || ''}`.trim() || 'Partner'
+          });
+        }
         await batch.commit();
         logger.info(`Assigned partner ${partnerId} to ${updatedTasks} tasks of sub ${subscriptionId}`);
         return { success: true, message: `Partner assigned to ${updatedTasks} tasks.` };
@@ -107,3 +132,4 @@ export const assignPartnerToTasks = async (subscriptionId, partnerId, taskId = n
     throw error;
   }
 };
+
