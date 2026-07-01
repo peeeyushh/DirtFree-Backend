@@ -60,6 +60,21 @@ export const startDispatcher = (io) => {
                         distance: distance.toFixed(2), // Include exact distance
                         timestamp: new Date()
                       });
+
+                      // Also emit 'newBookingRequest' to match partner app's expected listener
+                      socket.emit('newBookingRequest', {
+                        bookingId: booking.id,
+                        serviceName: booking.serviceName || (booking.items && booking.items[0]?.serviceName) || 'Service Request',
+                        location: booking.location,
+                        userAddress: booking.userAddress,
+                        isUrgent: isUrgent,
+                        targetPartnerIds: [socket.partnerId],
+                        distances: [{
+                          partnerId: socket.partnerId,
+                          distance: distance
+                        }],
+                        timestamp: new Date()
+                      });
                     }
                   }
                 }
@@ -74,6 +89,24 @@ export const startDispatcher = (io) => {
                 userAddress: booking.userAddress,
                 isUrgent: isUrgent,
                 distance: "unknown",
+                timestamp: new Date()
+              });
+
+              // Broadcast newBookingRequest to all partners in the room as fallback
+              const partnerSocketsInRoom = io.sockets.adapter.rooms.get('partners');
+              const targetPartnerIds = partnerSocketsInRoom ? Array.from(partnerSocketsInRoom).map(sId => {
+                const s = io.sockets.sockets.get(sId);
+                return s ? s.partnerId : null;
+              }).filter(Boolean) : [];
+
+              io.to('partners').emit('newBookingRequest', {
+                bookingId: booking.id,
+                serviceName: booking.serviceName || (booking.items && booking.items[0]?.serviceName) || 'Service Request',
+                location: booking.location,
+                userAddress: booking.userAddress,
+                isUrgent: isUrgent,
+                targetPartnerIds: targetPartnerIds,
+                distances: [],
                 timestamp: new Date()
               });
             }

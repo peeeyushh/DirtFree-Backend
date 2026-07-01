@@ -59,15 +59,19 @@ export const initSocket = (server) => {
       socket.isOnline = isOnline;
 
       // Store in Redis using GEOADD for extremely fast geospatial querying
-      if (isOnline && latitude && longitude) {
-        // syntax: GEOADD key longitude latitude member
-        await redis.geoadd('partners_location', longitude, latitude, partnerId);
-        // Also update their metadata
-        await redis.hset(`partner:${partnerId}`, 'isOnline', 'true', 'lastUpdated', Date.now());
-      } else if (!isOnline) {
-        // Remove from active locations if explicitly marked offline
-        await redis.zrem('partners_location', partnerId);
-        await redis.hset(`partner:${partnerId}`, 'isOnline', 'false');
+      try {
+        if (isOnline && latitude && longitude) {
+          // syntax: GEOADD key longitude latitude member
+          await redis.geoadd('partners_location', longitude, latitude, partnerId);
+          // Also update their metadata
+          await redis.hset(`partner:${partnerId}`, 'isOnline', 'true', 'lastUpdated', Date.now());
+        } else if (!isOnline) {
+          // Remove from active locations if explicitly marked offline
+          await redis.zrem('partners_location', partnerId);
+          await redis.hset(`partner:${partnerId}`, 'isOnline', 'false');
+        }
+      } catch (redisError) {
+        logger.warn(`⚠️ Failed to update partner location in Redis: ${redisError.message}`);
       }
 
       // Broadcast location to anyone tracking this partner (e.g., customers)
